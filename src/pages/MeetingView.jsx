@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import MeetingHeader from '../components/MeetingHeader.jsx'
 import AvailabilityGrid from '../components/AvailabilityGrid.jsx'
+import { detectTimezone, COMMON_TIMEZONES, getUtcOffsetMinutes } from '../utils/timeSlots.js'
 
 export default function MeetingView() {
   const { id } = useParams()
@@ -17,6 +18,7 @@ export default function MeetingView() {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [displayTimezone, setDisplayTimezone] = useState(() => detectTimezone())
 
   useEffect(() => {
     async function load() {
@@ -135,7 +137,21 @@ export default function MeetingView() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Timezone selector */}
+              <select
+                value={displayTimezone}
+                onChange={e => setDisplayTimezone(e.target.value)}
+                className="text-xs bg-white border border-[#E8E5DC] hover:border-[#C5C1BA] text-[#6B6860] px-2 py-1.5 rounded-lg focus:outline-none focus:border-brand-500 transition-colors"
+              >
+                {!COMMON_TIMEZONES.find(t => t.value === displayTimezone) && (
+                  <option value={displayTimezone}>{displayTimezone}</option>
+                )}
+                {COMMON_TIMEZONES.map(tz => (
+                  <option key={tz.value} value={tz.value}>{tz.label}</option>
+                ))}
+              </select>
+
               <button
                 onClick={handleCopy}
                 className="flex items-center gap-2 text-sm bg-white border border-[#E8E5DC] hover:border-[#C5C1BA] text-[#1F1E1D] px-3 py-1.5 rounded-lg transition-colors"
@@ -163,6 +179,8 @@ export default function MeetingView() {
             selectedSlots={selectedSlots}
             onSlotsChange={setSelectedSlots}
             heightClass="h-full"
+            meetingTimezone={meeting.timezone || 'UTC'}
+            displayTimezone={displayTimezone}
           />
         </div>
 

@@ -115,6 +115,93 @@ export function formatSlotRange(slot) {
 }
 
 /**
+ * Detect the user's IANA timezone (e.g. "America/New_York").
+ */
+export function detectTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+/**
+ * Get UTC offset in minutes for a given IANA timezone at the current moment.
+ * UTC+2 → 120, UTC-5 → -300.
+ */
+export function getUtcOffsetMinutes(timezone) {
+  try {
+    const now = new Date()
+    const tzStr  = now.toLocaleString('en-US', { timeZone: timezone })
+    const utcStr = now.toLocaleString('en-US', { timeZone: 'UTC' })
+    return (new Date(tzStr) - new Date(utcStr)) / 60000
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Apply a minute delta to "HH:MM", wrapping within 24 h.
+ * Returns "HH:MM".
+ */
+export function applyOffsetToTime(timeStr, offsetMins) {
+  const [h, m] = timeStr.split(':').map(Number)
+  const total = h * 60 + m + offsetMins
+  const norm  = ((total % 1440) + 1440) % 1440
+  return `${String(Math.floor(norm / 60)).padStart(2, '0')}:${String(norm % 60).padStart(2, '0')}`
+}
+
+/**
+ * Format a slot's time with an additional UTC-offset delta (displayTZ − meetingTZ, in minutes).
+ * offsetMins = 0 is a no-op.
+ */
+export function formatSlotTimeOffset(slot, offsetMins) {
+  if (!offsetMins) return formatSlotTime(slot)
+  const [, timePart] = slot.split(' ')
+  return formatSlotTime('2000-01-01 ' + applyOffsetToTime(timePart, offsetMins))
+}
+
+/**
+ * Format a slot's time range with an offset applied.
+ * "2025-01-15 09:30" + offsetMins -180 → "6:30 AM – 7:00 AM"
+ */
+export function formatSlotRangeOffset(slot, offsetMins) {
+  if (!offsetMins) return formatSlotRange(slot)
+  const [, timePart] = slot.split(' ')
+  const adjStart = applyOffsetToTime(timePart, offsetMins)
+  const [adjH, adjM] = adjStart.split(':').map(Number)
+  let endM = adjM + 30, endH = adjH
+  if (endM >= 60) { endM -= 60; endH = (endH + 1) % 24 }
+  const adjEnd = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+  return `${formatSlotTime('2000-01-01 ' + adjStart)} – ${formatSlotTime('2000-01-01 ' + adjEnd)}`
+}
+
+/**
+ * Curated list of common IANA timezones for a selector.
+ */
+export const COMMON_TIMEZONES = [
+  { value: 'Pacific/Honolulu',    label: 'Hawaii (UTC−10)' },
+  { value: 'America/Anchorage',   label: 'Alaska (UTC−9)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time — US & Canada (UTC−8/−7)' },
+  { value: 'America/Denver',      label: 'Mountain Time — US & Canada (UTC−7/−6)' },
+  { value: 'America/Chicago',     label: 'Central Time — US & Canada (UTC−6/−5)' },
+  { value: 'America/New_York',    label: 'Eastern Time — US & Canada (UTC−5/−4)' },
+  { value: 'America/Halifax',     label: 'Atlantic Time — Canada (UTC−4/−3)' },
+  { value: 'America/Sao_Paulo',   label: 'São Paulo (UTC−3)' },
+  { value: 'Atlantic/Azores',     label: 'Azores (UTC−1)' },
+  { value: 'UTC',                 label: 'UTC (UTC+0)' },
+  { value: 'Europe/London',       label: 'London (UTC+0/+1)' },
+  { value: 'Europe/Paris',        label: 'Paris / Berlin / Rome (UTC+1/+2)' },
+  { value: 'Europe/Helsinki',     label: 'Helsinki / Athens (UTC+2/+3)' },
+  { value: 'Europe/Moscow',       label: 'Moscow (UTC+3)' },
+  { value: 'Asia/Dubai',          label: 'Dubai (UTC+4)' },
+  { value: 'Asia/Karachi',        label: 'Karachi / Islamabad (UTC+5)' },
+  { value: 'Asia/Kolkata',        label: 'India — Mumbai / Delhi (UTC+5:30)' },
+  { value: 'Asia/Dhaka',          label: 'Dhaka (UTC+6)' },
+  { value: 'Asia/Bangkok',        label: 'Bangkok / Jakarta (UTC+7)' },
+  { value: 'Asia/Singapore',      label: 'Singapore / Beijing (UTC+8)' },
+  { value: 'Asia/Tokyo',          label: 'Tokyo / Seoul (UTC+9)' },
+  { value: 'Australia/Sydney',    label: 'Sydney / Melbourne (UTC+10/+11)' },
+  { value: 'Pacific/Auckland',    label: 'Auckland (UTC+12/+13)' },
+]
+
+/**
  * Get the heatmap cell color based on ratio (0–1).
  * Darker terracotta = fewer people available.
  * Green = everyone available (100%).

@@ -8,6 +8,7 @@ CREATE TABLE meetings (
   dates       date[]      NOT NULL,
   start_time  time        NOT NULL,
   end_time    time        NOT NULL,
+  timezone    text        NOT NULL DEFAULT 'UTC',
   created_at  timestamptz DEFAULT now()
 );
 
@@ -31,3 +32,6 @@ CREATE POLICY "meetings_insert_public"      ON meetings     FOR INSERT WITH CHEC
 CREATE POLICY "availability_select_public"  ON availability FOR SELECT USING (true);
 CREATE POLICY "availability_insert_public"  ON availability FOR INSERT WITH CHECK (true);
 CREATE POLICY "availability_update_public"  ON availability FOR UPDATE USING (true) WITH CHECK (true);
+
+-- ─── Migration (run if table already exists) ────────────────────────────────
+-- ALTER TABLE meetings ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'UTC';

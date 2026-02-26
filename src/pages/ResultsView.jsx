@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import MeetingHeader from '../components/MeetingHeader.jsx'
 import AvailabilityGrid from '../components/AvailabilityGrid.jsx'
-import { generateSlots, computeHeatmap, findBestSlots } from '../utils/timeSlots.js'
+import { generateSlots, computeHeatmap, findBestSlots, detectTimezone, COMMON_TIMEZONES } from '../utils/timeSlots.js'
 
 export default function ResultsView() {
   const { id } = useParams()
@@ -12,6 +12,7 @@ export default function ResultsView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedParticipant, setSelectedParticipant] = useState(null)
+  const [displayTimezone, setDisplayTimezone] = useState(() => detectTimezone())
 
   useEffect(() => {
     async function load() {
@@ -78,11 +79,28 @@ export default function ResultsView() {
           Back to availability
         </Link>
 
-        <MeetingHeader
-          title={meeting.title}
-          description={meeting.description}
-          meetingUrl={meeting.meeting_url}
-        />
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+          <MeetingHeader
+            title={meeting.title}
+            description={meeting.description}
+            meetingUrl={meeting.meeting_url}
+          />
+          <div className="shrink-0">
+            <label className="block text-xs text-[#6B6860] mb-1">Your timezone</label>
+            <select
+              value={displayTimezone}
+              onChange={e => setDisplayTimezone(e.target.value)}
+              className="text-xs bg-white border border-[#E8E5DC] hover:border-[#C5C1BA] text-[#6B6860] px-2 py-1.5 rounded-lg focus:outline-none focus:border-brand-500 transition-colors"
+            >
+              {!COMMON_TIMEZONES.find(t => t.value === displayTimezone) && (
+                <option value={displayTimezone}>{displayTimezone}</option>
+              )}
+              {COMMON_TIMEZONES.map(tz => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {/* Participants — clickable to highlight their slots on the grid */}
         {availability.length > 0 && (
@@ -144,6 +162,8 @@ export default function ResultsView() {
           allParticipants={allParticipants}
           highlightSlots={highlightSlots}
           readOnly
+          meetingTimezone={meeting.timezone || 'UTC'}
+          displayTimezone={displayTimezone}
         />
       </div>
     </div>

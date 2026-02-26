@@ -1,6 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns'
-import { generateSlots, formatSlotTime, formatSlotRange, formatSlotDate, heatmapColor } from '../utils/timeSlots.js'
+import {
+  generateSlots, formatSlotDate, heatmapColor,
+  applyOffsetToTime, formatSlotTime, formatSlotRangeOffset,
+  getUtcOffsetMinutes,
+} from '../utils/timeSlots.js'
 
 export default function AvailabilityGrid({
   meeting,
@@ -11,9 +15,22 @@ export default function AvailabilityGrid({
   highlightSlots = null,
   readOnly = false,
   heightClass = 'max-h-[75vh]',
+  meetingTimezone = 'UTC',
+  displayTimezone = null,
 }) {
   const isHeatmap = !!heatmap
   const allSlots = generateSlots(meeting.dates, meeting.start_time, meeting.end_time)
+
+  // Minutes to add to meeting-TZ times for display (0 when same timezone)
+  const effectiveTZ = displayTimezone || meetingTimezone
+  const offsetMins = (effectiveTZ !== meetingTimezone)
+    ? getUtcOffsetMinutes(effectiveTZ) - getUtcOffsetMinutes(meetingTimezone)
+    : 0
+
+  // Format a "HH:MM" string with the display offset applied
+  const fmtTime = (hhmm) => formatSlotTime(
+    '2000-01-01 ' + (offsetMins ? applyOffsetToTime(hhmm, offsetMins) : hhmm)
+  )
 
   const meetingDateSet = new Set(allSlots.map(s => s.split(' ')[0]))
   const timeStrings = [...new Set(allSlots.map(s => s.split(' ')[1]))]
@@ -27,8 +44,9 @@ export default function AvailabilityGrid({
   const dateStrings = eachDayOfInterval({ start: weekStart, end: weekEnd })
     .map(d => format(d, 'yyyy-MM-dd'))
 
-  // End-time label for the final row (handles "HH:MM:SS" from DB)
-  const endTimeLabel = formatSlotTime('2000-01-01 ' + meeting.end_time.split(':').slice(0, 2).join(':'))
+  // End-time label for the final row (handles "HH:MM:SS" from DB), with display offset
+  const endTimePart = meeting.end_time.split(':').slice(0, 2).join(':')
+  const endTimeLabel = fmtTime(endTimePart)
 
   const dragModeRef = useRef(null)
   const isDragging = useRef(false)
@@ -116,14 +134,20 @@ export default function AvailabilityGrid({
   return (
     <div className="relative h-full">
       <div
-        className={`${heightClass} overflow-auto rounded-xl border border-surface-50`}
+        className={`${heightClass} overflow-auto rounded-xl border border-surface-50 pb-3`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
         <div style={{ display: 'grid', gridTemplateColumns }}>
-          {/* Corner */}
-          <div className="sticky top-0 left-0 z-20 bg-surface-300 border-b border-r border-surface-50" />
+          {/* Corner — also hosts the first time label so it isn't hidden behind this z-20 cell */}
+          <div className="sticky top-0 left-0 z-20 bg-surface-300 border-b border-r border-surface-50 relative">
+            {timeStrings.length > 0 && (
+              <span className="absolute bottom-0 right-2 text-xs text-[#6B6860] whitespace-nowrap translate-y-[50%]">
+                {fmtTime(timeStrings[0])}
+              </span>
+            )}
+          </div>
 
           {/* Date headers */}
           {dateStrings.map(date => {
@@ -140,14 +164,17 @@ export default function AvailabilityGrid({
             )
           })}
 
-          {/* Time rows — label sits at the TOP of each row (= at the grid line) */}
-          {timeStrings.map(time => (
+          {/* Time rows — label sits at the TOP of each row (= at the grid line).
+               The first row's label lives in the corner cell above; skip it here. */}
+          {timeStrings.map((time, index) => (
             <div key={time} style={{ display: 'contents' }}>
-              {/* Time label — aligned to start so it sits ON the line, not in the cell */}
+              {/* Time label — skip index 0 (shown in corner), show all others on the grid line */}
               <div className="sticky left-0 z-10 bg-surface-300 border-b border-r border-surface-50 pr-2 flex items-start justify-end">
-                <span className="text-xs text-[#6B6860] whitespace-nowrap -translate-y-[7px]">
-                  {formatSlotTime('2000-01-01 ' + time)}
-                </span>
+                {index > 0 && (
+                  <span className="text-xs text-[#6B6860] whitespace-nowrap -translate-y-[7px]">
+                    {fmtTime(time)}
+                  </span>
+                )}
               </div>
 
               {/* Cells */}
@@ -212,7 +239,7 @@ export default function AvailabilityGrid({
           {isHeatmap && tooltip.entry ? (
             <>
               <div className="text-xs font-semibold text-[#1F1E1D] mb-1">
-                {formatSlotRange(tooltip.slot)} — {tooltip.entry.count}/{tooltip.entry.total} available
+                {formatSlotRangeOffset(tooltip.slot, offsetMins)} — {tooltip.entry.count}/{tooltip.entry.total} available
               </div>
               {(() => {
                 const missing = allParticipants.filter(p => !tooltip.entry.participants.includes(p))
@@ -226,7 +253,7 @@ export default function AvailabilityGrid({
             </>
           ) : (
             <div className="text-xs font-medium text-[#1F1E1D]">
-              {formatSlotRange(tooltip.slot)}
+              {formatSlotRangeOffset(tooltip.slot, offsetMins)}
             </div>
           )}
         </div>

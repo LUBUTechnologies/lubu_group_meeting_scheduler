@@ -15,6 +15,7 @@ import {
   startOfDay,
 } from 'date-fns'
 import { supabase } from '../lib/supabase.js'
+import { detectTimezone, COMMON_TIMEZONES } from '../utils/timeSlots.js'
 
 const today = startOfDay(new Date())
 
@@ -27,6 +28,7 @@ export default function CreateMeeting() {
   const [selectedDates, setSelectedDates] = useState([])
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('17:00')
+  const [timezone, setTimezone] = useState(() => detectTimezone())
   const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -68,6 +70,7 @@ export default function CreateMeeting() {
         dates: selectedDates.map(d => format(d, 'yyyy-MM-dd')),
         start_time: startTime,
         end_time: endTime,
+        timezone,
       })
       .select('id')
       .single()
@@ -209,9 +212,9 @@ export default function CreateMeeting() {
             )}
           </div>
 
-          {/* Time range */}
-          <div className="bg-white rounded-2xl border border-[#E8E5DC] p-6">
-            <h2 className="text-lg font-semibold text-[#1F1E1D] mb-4">Time range <span className="text-brand-500">*</span></h2>
+          {/* Time range + timezone */}
+          <div className="bg-white rounded-2xl border border-[#E8E5DC] p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-[#1F1E1D]">Time range <span className="text-brand-500">*</span></h2>
             <div className="flex items-center gap-4">
               <div className="flex-1">
                 <label className="block text-sm text-[#6B6860] mb-1">Start</label>
@@ -232,6 +235,23 @@ export default function CreateMeeting() {
                   className="w-full bg-[#F5F4ED] border border-[#E8E5DC] rounded-lg px-4 py-2.5 text-[#1F1E1D] focus:outline-none focus:border-brand-500 transition-colors"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-[#6B6860] mb-1">Timezone</label>
+              <select
+                value={timezone}
+                onChange={e => setTimezone(e.target.value)}
+                className="w-full bg-[#F5F4ED] border border-[#E8E5DC] rounded-lg px-4 py-2.5 text-[#1F1E1D] focus:outline-none focus:border-brand-500 transition-colors"
+              >
+                {/* Ensure detected timezone appears even if not in curated list */}
+                {!COMMON_TIMEZONES.find(t => t.value === timezone) && (
+                  <option value={timezone}>{timezone}</option>
+                )}
+                {COMMON_TIMEZONES.map(tz => (
+                  <option key={tz.value} value={tz.value}>{tz.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
